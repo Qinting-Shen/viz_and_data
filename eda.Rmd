@@ -1,0 +1,177 @@
+---
+title: "viz_part_2"
+author: "Qinting Shen"
+date: "2023-10-03"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(ggridges)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+```
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728", "USW00022534", "USS0023B17S"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2021-01-01",
+    date_max = "2022-12-31") |>
+  mutate(
+    name = recode(
+      id, 
+      USW00094728 = "CentralPark_NY", 
+      USW00022534 = "Molokai_HI",
+      USS0023B17S = "Waterhole_WA"),
+    tmin = tmin / 10,
+    tmax = tmax / 10,
+    month = lubridate::floor_date(date, unit = "month"))|>
+  select(name, id, everything())
+```
+
+## initial numeric work
+```{r}
+weather_df |> 
+  ggplot(aes(x = prcp)) + 
+  geom_histogram()
+```
+
+here are the big outliers
+```{r}
+weather_df |> 
+  filter(prcp >= 1000)
+```
+
+
+```{r}
+weather_df |> 
+  filter(tmax >= 20, tmax <= 30) |> 
+  ggplot(aes(x = tmin, y = tmax, color = name, shape = name)) + 
+  geom_point(alpha = .75)
+```
+
+
+## Grouping
+
+```{r}
+weather_df |>
+  group_by(name, month)
+```
+
+
+## Counting
+
+```{r}
+weather_df |>
+  group_by(month) |>
+  summarize(n_obs = n())
+```
+
+
+```{r}
+weather_df |>
+  count(month, name = "n_obs")
+```
+
+```{r}
+weather_df |>
+  count(name, month) |> 
+  pivot_wider(
+    names_from = name,
+    values_from = n
+  )
+```
+
+
+## General summaries
+
+```{r}
+weather_df |>
+  group_by(name, month) |>
+  summarize(
+    mean_tmax=mean(tmax, na.rm = TRUE),
+    median_tmax= median(tmax, na.rm= TRUE),
+    sd_tmax=sd(tmax, na.rm = TRUE)
+    )
+```
+
+
+```{r}
+weather_df |>
+  group_by(name, month) |>
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE)) |>
+  ggplot(aes(x = month, y = mean_tmax, color = name)) + 
+    geom_point() + geom_line() + 
+    theme(legend.position = "bottom")
+```
+
+```{r}
+weather_df |>
+  group_by(name, month) |>
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE)) |> 
+  pivot_wider(
+    names_from = name,
+    values_from = mean_tmax
+  ) |> 
+ knitr::kable(digits = 2)
+```
+
+
+## Grouped mutate
+
+```{r}
+weather_df |>
+  group_by(name) |>
+  mutate(
+    mean_tmax = mean(tmax, na.rm = TRUE),
+    centered_tmax = tmax - mean_tmax) |> 
+  ggplot(aes(x = date, y = centered_tmax, color = name)) + 
+    geom_point() 
+```
+
+```{r}
+weather_df |>
+  group_by(name, month) |>
+  mutate(temp_ranking = min_rank(tmax)) |> 
+  filter(temp_ranking<2)
+```
+
+```{r}
+weather_df |>
+  group_by(name, month) |>
+  filter(min_rank(desc(tmax)) < 4)
+```
+
+
+lags
+
+```{r}
+weather_df |>
+  group_by(name) |> ## cannot forget this line, or else it will make no sense when changing from central to next name
+  mutate(temp_change = tmax - lag(tmax, 3))
+```
+
+```{r}
+weather_df |>
+  group_by(name) |>
+  mutate(temp_change = tmax - lag(tmax)) |>
+  summarize(
+    temp_change_sd = sd(temp_change, na.rm = TRUE),
+    temp_change_max = max(temp_change, na.rm = TRUE)
+    )
+```
+
+
+
+
+
+
+
+
+
